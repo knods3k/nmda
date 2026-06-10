@@ -1,19 +1,19 @@
 #%%
 from ray_training import build_test_loader, build_surrogate, build_optimizer, build_evaluation_function, build_model, build_loader
 from utils.settings import DEVICE
-from neurons import NeuronModel, LIF, LI, DendriteModel
+from neurons import NeuronModel, LIF, LI, DendriticSummation
 import torch
 import numpy as np
 
 import matplotlib.pyplot as plt
 from scipy.special import softmax
 from scipy.stats import gaussian_kde
-from utils.nmda_init import initialise_nmda_weights, initialise_nmda_weights_lognormal
+from utils.nmda_init import initialise_nmda_weights
 from retrieve_model import retrieve_model
 
 #%%
 dir = "/Users/cankayser/Downloads/results/43230"
-# dir = ''
+dir = ''
 
 DELAY = 200
 B = 1
@@ -23,21 +23,18 @@ def observe_states(model, x, layer_idx, state_str):
 
 	with torch.no_grad():
 		layer = model.layers[layer_idx]
-		if isinstance(layer, NeuronModel):
-			if isinstance(layer, LIF):
-				state_str = 's'
+		if isinstance(layer, LIF):
+			state_str = 's'
 
-			states = model.test(x)
-			T = x.shape[1]
-			N = states[0][layer_idx][state_str].shape[1]
-			s = np.empty((B,T,N))
-			for i, state in enumerate(states):
-				s_hat = state[layer_idx][state_str]
-				s[:,i,:] = s_hat.cpu().numpy()
+		states = model.test(x)
+		T = x.shape[1]
+		N = states[0][layer_idx][state_str].shape[1]
+		s = np.empty((B,T,N))
+		for i, state in enumerate(states):
+			s_hat = state[layer_idx][state_str]
+			s[:,i,:] = s_hat.cpu().numpy()
 
-			return s
-		else:
-			return None
+		return s
 
 def list_states(model):
 	states = []
@@ -45,9 +42,9 @@ def list_states(model):
 	n_layers = len(model.layers)
 	for i in range(n_layers):
 		state = observe_states(model, test_x, i, 'u')
-		if state is not None:
-			states.append(state.copy())
-			names.append(type(model.layers[i]).__name__)
+		# for key, value in state
+		states.append(state.copy())
+		names.append(type(model.layers[i]).__name__)
 
 	return names, states
 
@@ -66,15 +63,9 @@ if __name__ == '__main__':
 	CONFIG['max_epochs'] = 1
 	CONFIG['steps_per_epoch'] = 1
 	CONFIG['batch_size'] = 1
-	CONFIG['architecture'] = 'NMDA_AMPA_GABA_LIF_SNN'
+	CONFIG['architecture'] = 'DendriticSNN'
 	# CONFIG['learnable'] = 'none'
 
-	names_dict = {
-		"NMDA_AMPA_GABA": "Potential $v$",
-		"NMDA_AMPA": "Potential $v$",
-		"LIF": "Spikes $z$",
-		"LI": "Readout $u$",
-	}
 	torch.manual_seed(CONFIG['seed'])
 	config = CONFIG
 
@@ -149,6 +140,8 @@ if __name__ == '__main__':
 		plt.show()
 
 
+
+# %%
 
 #%%
 if __name__ == '__main__':

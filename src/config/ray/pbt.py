@@ -24,7 +24,7 @@ CONFIG = {
 	"dt": 1e-2,
 	"gam0": 0.75,
 	"gam1": 6.66,
-	"dendritic_scaling": 3.9,
+	"dendritic_scaling": 50,
 	"relative_concentration": 1.,
 	"coupling_conductance": 1.,
 	"sigma": tune.loguniform(.001, 1.),
@@ -42,4 +42,5 @@ CONFIG = {
 	"seed": tune.randint(0, 9999),
 	"id": ID,
 	"already_initialised": [],
+	"activate_bias": False,
 	}

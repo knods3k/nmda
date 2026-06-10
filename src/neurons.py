@@ -12,12 +12,6 @@ class NeuronModel(nn.Module):
 		self.n_neurons = n_neurons
 		self.state = {}
 
-		self._constructor_args = {
-			'n_neurons': n_neurons,
-			'args': args,
-			'kwargs': kwargs.copy()
-		}
-
 	def register_logarithmic_parameters(
 			self,
 			parameter_dictionary: dict,
@@ -39,10 +33,6 @@ class NeuronModel(nn.Module):
 
 			setattr(self, name, param)
 
-	def clone_with_new_dim(self, new_dim):
-		args = self._constructor_args['args']
-		kwargs = self._constructor_args['kwargs'].copy()
-		return self.__class__(new_dim, *args, **kwargs)
 
 	def reset(self, batch_size):
 		for key in self.state.keys():
@@ -50,14 +40,11 @@ class NeuronModel(nn.Module):
 		return self.state
 
 
-class DendriteModel(nn.Module):
+class DendriticSummation(nn.Module):
 	def __init__(self, n_dendrites, config, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
 		self.n_dendrites = n_dendrites
-
-		dt = torch.exp(torch.tensor(config['dt'], device=DEVICE, dtype=DTYPE))
-		du = torch.exp(torch.tensor(config['du_dend'], device=DEVICE, dtype=DTYPE))
 
 		if 'dendritic_scaling' in config:
 			winit = config['dendritic_scaling']
@@ -68,20 +55,37 @@ class DendriteModel(nn.Module):
 
 	def forward(self, x):
 		B, D = x.shape
-		return (x.view((B, -1, self.n_dendrites)) * torch.exp(self.w) ).mean(-1)
+		return (x.view((B, -1, self.n_dendrites)) * self.w ).mean(-1)
 
 
 
 class NonNegativeLinear(nn.Module):
-	def __init__(self, in_features, out_features):
+	def __init__(self, in_features, out_features, config):
 		super().__init__()
 		self.in_features = in_features
 		self.out_features = out_features
-		self.weight= nn.Parameter(torch.randn(out_features, in_features, dtype=DTYPE, device=DEVICE))
-		self.bias= nn.Parameter(torch.randn(out_features, dtype=DTYPE, device=DEVICE))
+		self.weight = nn.Parameter(torch.randn(out_features, in_features, dtype=DTYPE, device=DEVICE))
+		if config['activate_bias']:
+			self.bias = nn.Parameter(torch.randn(out_features, dtype=DTYPE, device=DEVICE))
+		else:
+			self.bias = torch.zeros(1, dtype=DTYPE, device=DEVICE)
 
 	def forward(self, input):
 		return nn.functional.linear(input, self.weight.abs(), self.bias.abs())
+
+
+class ExponentialDecayFilter(nn.Module):
+	def __init__(self, du_log, dt_log, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+		self.dt = torch.exp(dt_log)
+		self.rate = torch.exp(du_log)
+		self.inv = (1 / self.rate)
+		self.decay = torch.exp(-self.rate * self.dt)
+		self.drive = -torch.expm1(-self.rate * self.dt)
+
+	def __call__(self, u, i):
+		return (self.decay * u) + (self.drive * self.inv * i)
 
 
 class LI(NeuronModel):
@@ -98,12 +102,8 @@ class LI(NeuronModel):
 			learnable=config['learnable']
 		)
 
-	def prepare(self):
-		self.dt = torch.exp(self.dt_log)
-		self.du = torch.exp(self.du_soma_log)
-		self.du_inv = 1/self.du
-		self.du_exp = torch.exp(-self.du*self.dt)
-		self.du_exp_m1 = -torch.expm1(-self.du*self.dt)
+		self.filter = ExponentialDecayFilter(self.du_soma_log, self.dt_log)
+
 
 	def forward(self, x):
 
@@ -112,7 +112,7 @@ class LI(NeuronModel):
 		u = self.state['u']
 		i = self.state['i']
 
-		u_new = (self.du_exp * u) + (self.du_exp_m1 * i * self.du_inv)
+		u_new = self.filter(u, i)
 
 		self.state['u'] = u_new
 		return self.state['u']
@@ -136,7 +136,7 @@ class LIF(LI):
 		i = self.state['i']
 		s = self.surrogate_spike((u - self.threshold))
 
-		u_hat = (self.du_exp * u) + (self.du_exp_m1 * i * self.du_inv)
+		u_hat = self.filter(u,i)
 		u_new = u_hat * (1 - s)
 
 		self.state['u'] = u_new
@@ -144,11 +144,11 @@ class LIF(LI):
 		return s
 
 
-class NMDA(LI):
-	def __init__(self, n_inputs, n_outputs, config, *args, **kwargs):
-		super().__init__(n_outputs, config, *args, **kwargs)
+class NMDA_Receptor(LI):
+	def __init__(self, n_neurons, config, *args, **kwargs):
+		super().__init__(n_neurons, config, *args, **kwargs)
 
-		self.state = {'i': None, 'u': None, 'w': None,  'v': None}
+		self.state = {'i': None, 'w': None,  'v': None}
 
 		self.register_logarithmic_parameters(
 			{
@@ -162,199 +162,188 @@ class NMDA(LI):
 		self.gam0 = config['gam0']
 		self.gam1 = config['gam1']
 
-		self.exc_linear = NonNegativeLinear(n_inputs, n_outputs)
+		self.filter_v = ExponentialDecayFilter(self.dv_log, self.dt_log)
+		self.filter_w = ExponentialDecayFilter(self.dw_log, self.dt_log)
 
-	# def reset(self, batch_size):
-	# 	u1 = 1 - scipy.special.lambertw(-np.exp(1) / self.gamma, k=-1).real
-	# 	u2 = 1 - scipy.special.lambertw(-np.exp(1) / self.gamma, k=0).real
-	# 	u1 = torch.tensor(u1, device=DEVICE, dtype=DTYPE)
-	# 	u2 = torch.tensor(u2, device=DEVICE, dtype=DTYPE)
-	# 	j1 = self.du * (u1 / self.h(u1))
-	# 	j2 = self.du * (u2 / self.h(u2))
-	# 	self.state['u'] = torch.zeros((batch_size, self.n_neurons), device=DEVICE, dtype=DTYPE) + ((u1-u2)/2)
-	# 	self.state['v'] = torch.zeros((batch_size, self.n_neurons), device=DEVICE, dtype=DTYPE) + ((j1-j2)/2)
-	# 	self.state['w'] = torch.zeros((batch_size, self.n_neurons), device=DEVICE, dtype=DTYPE) + 0
-	# 	return self.state
+		self.dw = self.filter_w.rate
+		self.dv = self.filter_v.rate
+
+		self.norm = -torch.exp(-self.dw*torch.log(self.dv/self.dw)/(self.dv - self.dw)) + torch.exp(-self.dv*torch.log(self.dv/self.dw)/(self.dv - self.dw))
+
 
 	@staticmethod
 	def h(u, gam0=.5, gam1=8.):
 		return torch.sigmoid(gam1 * (u - gam0))
 
 
-	def prepare(self):
-		super().prepare()
-		self.du = torch.exp(self.du_dend_log)
-		self.du_inv = 1/self.du
-		self.du_exp = torch.exp(-self.du*self.dt)
-		self.du_exp_m1 = -torch.expm1(-self.du*self.dt)
-
-		self.dv = torch.exp(self.dv_log)
-		self.dv_inv = 1/self.dv
-		self.dv_exp = torch.exp(-self.dv*self.dt)
-		self.dv_exp_m1 = -torch.expm1(-self.dv*self.dt)
-
-		self.dw = torch.exp(self.dw_log)
-		self.dw_inv = 1/self.dw
-		self.dw_exp = torch.exp(-self.dw*self.dt)
-		self.dw_exp_m1 = -torch.expm1(-self.dw*self.dt)
-
-		self.norm = (self.dv*self.dw) / (self.dw - self.dv)
-		# self.norm = -torch.exp(-self.dw*torch.log(self.dv/self.dw)/(self.dv - self.dw)) + torch.exp(-self.dv*torch.log(self.dv/self.dw)/(self.dv - self.dw))
-
-
-	def forward(self, x):
-		i_exc = self.exc_linear(x)
-		u = self.state['u']
+	def conductance(self, i, u):
 		w = self.state['w']
 		v = self.state['v']
 
-		v_new = (self.dv_exp * v) + (self.dv_exp_m1 * i_exc * self.dv_inv)
-		w_new = (self.dw_exp * w) + (self.dw_exp_m1 * i_exc * self.dw_inv)
+		v_new = self.filter_v(v,i)
+		w_new = self.filter_w(w,i)
 
 		g_nmda = self.norm * (v_new - w_new) * self.h(u, gam0=self.gam0, gam1=self.gam1)
-		u_new = (u + self.dt * g_nmda) / (1 + self.dt * (self.du + g_nmda))
 
-		self.state['u'] = u_new
 		self.state['v'] = v_new
 		self.state['w'] = w_new
 
-		return u_new
+		return g_nmda
 
 
-class NMDA_AMPA(NMDA):
-	def __init__(self, n_inputs, n_outputs, config, *args, **kwargs):
-		super().__init__(n_inputs, n_outputs, config, *args, **kwargs)
-
-		self.register_logarithmic_parameters({'relative_concentration_log': config['relative_concentration']}, learnable='all')
-		self.register_logarithmic_parameters({'dg_log': config['dg']}, learnable=config['learnable'])
-
-		self.state['g_ampa'] = None
-
-
-	def prepare(self):
-		super().prepare()
-		self.lam = torch.exp(self.relative_concentration_log)
-
-		self.dg = torch.exp(self.dg_log)
-		self.dg_inv = 1/self.dg
-		self.dg_exp = torch.exp(-self.dg*self.dt)
-		self.dg_exp_m1 = -torch.expm1(-self.dg*self.dt)
-
-
-	def forward(self, x):
-		i_exc = self.exc_linear(x)
-		i = self.state['i']
-		u = self.state['u']
-		w = self.state['w']
-		v = self.state['v']
-		g_ampa = self.state['g_ampa']
-
-		v_new = (self.dv_exp * v) + (self.dv_exp_m1 * i_exc * self.dv_inv)
-		w_new = (self.dw_exp * w) + (self.dw_exp_m1 * i_exc * self.dw_inv)
-		g_ampa_new = (self.dg_exp * g_ampa) + (self.dg_exp_m1 * i_exc * self.dg_inv * self.lam)
-		g_nmda_new = self.norm * (v_new - w_new) * self.h(u, gam0=self.gam0, gam1=self.gam1)
-
-		g_total = g_nmda_new + g_ampa_new
-		u_new = (u + self.dt * g_total) / (1 + self.dt * (self.du + g_total))
-
-		self.state['u'] = u_new
-		self.state['v'] = v_new
-		self.state['w'] = w_new
-		self.state['g_ampa'] = g_ampa_new
-
-		return u_new
-
-
-
-class NMDA_AMPA_comp(NMDA_AMPA):
+class AMPA_Receptor(LI):
 	def __init__(self, n_neurons, config, *args, **kwargs):
 		super().__init__(n_neurons, config, *args, **kwargs)
 
-		self.register_logarithmic_parameters({'g_coupling_log': config['coupling_conductance']}, learnable='all')
+		self.state = {'i': None, 'g': None}
 
-	def prepare(self):
-		super().prepare()
-		self.g_coupling = torch.sigmoid((self.g_coupling_log))
+		self.register_logarithmic_parameters(
+			{
+				'du_dend_log': config['du_dend'],
+				'dg_log': config['dg'],
+			},
+			learnable=config['learnable']
+		)
 
+		self.gam0 = config['gam0']
+		self.gam1 = config['gam1']
 
-	def forward(self, x, ud=0):
+		self.filter = ExponentialDecayFilter(self.dg_log, self.dt_log)
 
-		self.state['i'] = x
-		i = self.state['i']
-		u = self.state['u']
-		w = self.state['w']
-		v = self.state['v']
+	def conductance(self, i):
 		g = self.state['g']
+		g_new = self.filter(g,i)
 
-		v_new = (self.dv_exp * v) + (self.dv_exp_m1 * i * self.dv_inv)
-		w_new = (self.dw_exp * w) + (self.dw_exp_m1 * i * self.dw_inv)
-		g_new = (self.dg_exp * g) + (self.dw_exp_m1 * i * self.dw_inv * self.lam)
+		return g_new
 
-		drive = (self.norm * (v_new - w_new) * self.h(u, gam0=self.gam0, gam1=self.gam1)) + g
-		coupling = (self.g_coupling * ud)
-		u_new = (u + self.dt * (drive + coupling)) / (1 + self.dt * (self.du + drive + self.g_coupling))
+class GABA_Receptor(AMPA_Receptor):
+	pass
 
-		self.state['u'] = u_new
-		self.state['v'] = v_new
-		self.state['w'] = w_new
-		self.state['g'] = g_new
 
-		return u_new
+class MembraneIntegrator(nn.Module):
+	def __init__(self, du, dt, *args, **kwargs):
+		super().__init__(*args, **kwargs)
 
-class NMDA_AMPA_GABA(NMDA_AMPA):
-	def __init__(self, n_inputs, n_outputs, config, *args, **kwargs):
-		super().__init__(n_inputs, n_outputs, config, *args, **kwargs)
+		self.du = du
+		self.dt = dt
 
-		self.state['g_gaba'] = None
+	def integrate(self, u, excitation, inhibition):
+		return (u + self.dt * (excitation - inhibition)) / (1 + self.dt * (self.du + excitation + inhibition))
 
-		self.routing = torch.nn.Parameter(torch.randn(n_inputs)) # start biased toward excitation to ensure early spiking
-		self.surrogate_routing = config['surrogate_spike'] # reuse surrogate spiking mechanism to route signals to excitation/inhibition
 
-	def prepare(self):
-		super().prepare()
-		self.norm = -torch.exp(-self.dw*torch.log(self.dv/self.dw)/(self.dv - self.dw)) + torch.exp(-self.dv*torch.log(self.dv/self.dw)/(self.dv - self.dw))
 
+class DendriteLayer(NeuronModel):
+	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
+		super().__init__(n_dendrites * n_outputs, config, *args, **kwargs)
+
+		self.nmda = NMDA_Receptor(n_dendrites * n_outputs, config)
+		self.ampa = AMPA_Receptor(n_dendrites * n_outputs, config)
+		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
+		self.integrator = MembraneIntegrator(config['du_dend'], config['dt'])
+
+		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 2)
+		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
+
+		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
+
+		self.state = {'u': None}
+
+	def reset(self, batch_size):
+		super().reset(batch_size)
+		self.nmda.reset(batch_size)
+		self.ampa.reset(batch_size)
+		self.gaba.reset(batch_size)
+
+	def retrieve_states(self):
+		return self.state
 
 
 	def forward(self, x):
 		gate = self.surrogate_routing(self.routing)
-		x_exc = gate * x # signal gets cut in half -> double the strength
+		x_exc = gate * x
 		x_inh = (1-gate) * x
-		i_exc = self.exc_linear(x_exc)
-		i_inh = self.exc_linear(x_inh)
+		i_exc = self.synapses(x_exc)
+		i_inh = self.synapses(x_inh)
+
 		u = self.state['u']
-		w = self.state['w']
-		v = self.state['v']
-		g_ampa = self.state['g_ampa']
-		g_gaba = self.state['g_gaba']
 
-		lam = 1 + (torch.sigmoid(self.lam)*3)
-		v_new = (self.dv_exp * v) + (self.dv_exp_m1 * i_exc * self.dv_inv)
-		w_new = (self.dw_exp * w) + (self.dw_exp_m1 * i_exc * self.dw_inv)
-		g_ampa_new = (self.dg_exp * g_ampa) + (self.dg_exp_m1 * i_exc * self.dg_inv * lam)
-		g_gaba_new = (self.dg_exp * g_gaba) + (self.dg_exp_m1 * i_inh * self.dg_inv)
-		g_nmda_new = self.norm * (v_new - w_new) * self.h(u, gam0=self.gam0, gam1=self.gam1)
+		g_nmda = self.nmda.conductance(i_exc, u)
+		g_ampa = self.ampa.conductance(i_exc)
+		g_gaba = self.gaba.conductance(i_inh)
 
-		u_new = (u + self.dt * (g_nmda_new + g_ampa_new - g_gaba_new)) / (1 + self.dt * (self.du + g_nmda_new + g_ampa_new + g_gaba_new))
+		u_new = self.integrator.integrate(u, g_nmda + g_ampa, g_gaba)
 
 		self.state['u'] = u_new
-		self.state['v'] = v_new
-		self.state['w'] = w_new
-		self.state['g_ampa'] = g_ampa_new
-		self.state['g_gaba'] = g_gaba_new
 
 		return u_new
 
 
+class SomaLayer(NeuronModel):
+	def __init__(self, n_neurons, config, *args, **kwargs):
+		super().__init__(n_neurons, config, *args, **kwargs)
+
+		self.lif = LIF(n_neurons, config)
+
+	def reset(self, batch_size):
+		self.lif.reset(batch_size)
+
+	def retrieve_states(self):
+		return self.lif.state
+
+	def forward(self, x):
+		return self.lif.forward(x)
 
 
-class NMDA_AMPA_ablation(NMDA_AMPA):
-	@staticmethod
-	def h(u, gam0=.5, gam1=8.):
-		return 1.
+class NeuronLayer(nn.Module):
+	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+		self.dendrites		= DendriteLayer(n_inputs, n_dendrites, n_outputs, config)
+		self.dendritic_sum	= DendriticSummation(n_dendrites, config)
+		self.somas			= SomaLayer(n_outputs, config)
+
+	def reset(self, batch_size):
+		self.dendrites.reset(batch_size)
+		self.somas.reset(batch_size)
+
+	def retrieve_states(self):
+		return [
+			self.dendrites.retrieve_states(),
+			self.somas.retrieve_states(),
+		]
+
+	def forward(self, x):
+		return self.somas.forward(
+					self.dendritic_sum.forward(
+						self.dendrites.forward(x)
+					)
+				)
 
 
-class COMPARTMENTS(NeuronModel):
+class LinearReadoutLayer(nn.Module):
+	def __init__(self, n_inputs, n_outputs, config, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+		self.li = LI(n_outputs, config)
+		self.linear = nn.Linear(n_inputs, n_outputs, config['activate_bias'])
+
+	def reset(self, batch_size):
+		self.li.reset(batch_size)
+
+	def retrieve_states(self):
+		return [
+			self.li.state
+		]
+
+	def forward(self, x):
+		return self.li.forward(
+					self.linear(
+						x
+					)
+				)
+
+
+class CompartmentLayer(NeuronModel):
 	def __init__(self, in_features, out_features, config, *args, **kwargs):
 		super().__init__(in_features, config, *args, **kwargs)
 
@@ -383,14 +372,15 @@ class COMPARTMENTS(NeuronModel):
 			self.synapses.append(
 			NonNegativeLinear(
 				in_features,
-				out_features
+				out_features,
+				config,
 				),
 			)
 
-	def compute_relative_conductance(self, comp_idx):
+	def compute_relative_conductance(self, compartment_idx):
 		maximum = self.du_dend / self.du_soma
 		minimum = 1
-		return ((comp_idx / self.n_comp) * (maximum - minimum)) + (minimum)
+		return ((compartment_idx / self.n_comp) * (maximum - minimum)) + (minimum)
 
 	def reset(self, B):
 		for comp in self.compartments:
@@ -425,10 +415,15 @@ if __name__ == '__main__':
 	CONFIG['batch_size'] = 3
 	CONFIG['learnable'] = 'all'
 
-	x = torch.randn((1,21,700), device=DEVICE, dtype=DTYPE)
-	model = COMPARTMENTS(700, 64, CONFIG)
+	from utils.surrogate import Surrogate
+	CONFIG['surrogate_spike'] = Surrogate()
+
+	x = torch.randn((1,700), device=DEVICE, dtype=DTYPE)
+	model = NeuronLayer(700, 3, 64, CONFIG)
 	model.to(DEVICE)
-	model(x)
+	model.reset(1)
+	for i in range(99):
+		model(x*99)
 
 
 
