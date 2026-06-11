@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils.settings import DEVICE
 from utils.surrogate import Surrogate
-from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer
+from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, MultiplicativeDendriticLayer
 
 N_HIDDEN = 256
 
@@ -91,12 +91,32 @@ class DendriticSNN(SNN):
 
 		self.build()
 
+class DendriticSNN_Multiplicative(SNN):
+	def __init__(self, config):
+		super().__init__()
+
+		n_in = config['n_inputs']
+		n_dendrites = config['n_dendrites']
+		n_hidden = config['n_hidden']
+		n_out = config['n_outputs']
+
+		self.layer_list = [
+			MultiplicativeDendriticLayer(n_in, n_dendrites, n_hidden, config),
+			SomaLayer(n_hidden, config),
+			MultiplicativeDendriticLayer(n_hidden, n_dendrites, n_hidden, config),
+			SomaLayer(n_hidden, config),
+			LinearReadoutLayer(n_hidden, n_out, config),
+		]
+
+		self.build()
+
 
 # %%
 
 
 ARCHITECTURES = {
 	'DendriticSNN': DendriticSNN,
+	'DendriticSNN_Multiplicative': DendriticSNN_Multiplicative,
 }
 
 if __name__ == "__main__":
