@@ -2,7 +2,7 @@ import torch
 import random
 import numpy as np
 
-PROJECT_NAME = 'DendriticSSM'
+PROJECT_NAME = 'DendriticSNN'
 
 if torch.backends.mps.is_available():
 	DEVICE = torch.device('mps')
