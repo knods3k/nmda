@@ -257,7 +257,7 @@ class DendriteLayer(NeuronModel):
 		self.gaba.reset(batch_size)
 
 
-	def forward(self, x):
+	def simulate(self, x):
 		gate = self.surrogate_routing(self.routing)
 		x_exc = gate * x
 		x_inh = (1-gate) * x
@@ -274,7 +274,10 @@ class DendriteLayer(NeuronModel):
 
 		self.state['u'] = u_new
 
-		return self.sum(u_new)
+		return u_new
+
+	def forward(self, x):
+		return self.sum(self.simulate(x))
 
 
 class SomaLayer(NeuronModel):
@@ -314,6 +317,49 @@ class LinearReadoutLayer(nn.Module):
 				)
 		self.state['u'] = self.li.state['u']
 		return out
+
+
+class ParallelLayer(nn.Module):
+	def __init__(self, layer_list, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+		self.layer_list = layer_list
+
+	def couple(self, x):
+		raise NotImplementedError
+
+	def forward(self, x):
+		return self.couple(self.layer_list, x)
+
+
+class MultiplicativeLayer(ParallelLayer):
+	def __init__(self, layer_list, *args, **kwargs):
+		super().__init__(layer_list, *args, **kwargs)
+
+
+	def couple(self, x):
+		outputs = torch.stack(
+			[layer.forward(x) for layer in self.layer_list],
+			dim=0
+		)
+		return torch.prod(outputs, dim=0)
+
+
+class MultiplicativeDendriticLayer(nn.Module):
+	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+		self.dendrites = DendriteLayer(n_inputs, n_dendrites, n_outputs, config)
+		self.direct = NonNegativeLinear(n_inputs, n_outputs, config)
+		self.multiply = MultiplicativeLayer([self.dendrites, self.direct])
+
+
+	def reset(self, batch_size):
+		self.dendrites.reset(batch_size)
+
+
+	def forward(self, x):
+		return self.multiply.couple(x)
 
 
 class CompartmentLayer(NeuronModel):
@@ -392,7 +438,7 @@ if __name__ == '__main__':
 	CONFIG['surrogate_spike'] = Surrogate()
 
 	x = torch.randn((1,700), device=DEVICE, dtype=DTYPE)
-	model = NeuronLayer(700, 3, 64, CONFIG)
+	model = MultiplicativeDendriticLayer(700, 3, 64, CONFIG)
 	model.to(DEVICE)
 	model.reset(1)
 	for i in range(99):
