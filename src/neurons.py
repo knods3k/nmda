@@ -248,14 +248,13 @@ class DendriteLayer(NeuronModel):
 
 		self.state = {'u': None}
 
+		self.sum = DendriticSummation(n_dendrites, config)
+
 	def reset(self, batch_size):
 		super().reset(batch_size)
 		self.nmda.reset(batch_size)
 		self.ampa.reset(batch_size)
 		self.gaba.reset(batch_size)
-
-	def retrieve_states(self):
-		return self.state
 
 
 	def forward(self, x):
@@ -275,7 +274,7 @@ class DendriteLayer(NeuronModel):
 
 		self.state['u'] = u_new
 
-		return u_new
+		return self.sum(u_new)
 
 
 class SomaLayer(NeuronModel):
@@ -283,41 +282,16 @@ class SomaLayer(NeuronModel):
 		super().__init__(n_neurons, config, *args, **kwargs)
 
 		self.lif = LIF(n_neurons, config)
+		self.state = {'s': None}
 
 	def reset(self, batch_size):
 		self.lif.reset(batch_size)
 
-	def retrieve_states(self):
-		return self.lif.state
-
 	def forward(self, x):
-		return self.lif.forward(x)
+		out = self.lif.forward(x)
+		self.state['s'] = self.lif.state['s']
+		return out
 
-
-class NeuronLayer(nn.Module):
-	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
-		super().__init__(*args, **kwargs)
-
-		self.dendrites		= DendriteLayer(n_inputs, n_dendrites, n_outputs, config)
-		self.dendritic_sum	= DendriticSummation(n_dendrites, config)
-		self.somas			= SomaLayer(n_outputs, config)
-
-	def reset(self, batch_size):
-		self.dendrites.reset(batch_size)
-		self.somas.reset(batch_size)
-
-	def retrieve_states(self):
-		return [
-			self.dendrites.retrieve_states(),
-			self.somas.retrieve_states(),
-		]
-
-	def forward(self, x):
-		return self.somas.forward(
-					self.dendritic_sum.forward(
-						self.dendrites.forward(x)
-					)
-				)
 
 
 class LinearReadoutLayer(nn.Module):
@@ -326,21 +300,20 @@ class LinearReadoutLayer(nn.Module):
 
 		self.li = LI(n_outputs, config)
 		self.linear = nn.Linear(n_inputs, n_outputs, config['activate_bias'])
+		self.state = {'u': None}
 
 	def reset(self, batch_size):
 		self.li.reset(batch_size)
 
-	def retrieve_states(self):
-		return [
-			self.li.state
-		]
 
 	def forward(self, x):
-		return self.li.forward(
+		out = self.li.forward(
 					self.linear(
 						x
 					)
 				)
+		self.state['u'] = self.li.state['u']
+		return out
 
 
 class CompartmentLayer(NeuronModel):

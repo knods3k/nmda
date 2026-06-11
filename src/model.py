@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils.settings import DEVICE
 from utils.surrogate import Surrogate
-from neurons import NeuronLayer, LinearReadoutLayer
+from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer
 
 N_HIDDEN = 256
 
@@ -26,7 +26,7 @@ class SNN(nn.Module):
 			self.layers.append(layer)
 
 
-	def forward(self, x, collect_states=False):
+	def forward(self, x):
 		B, T, D = x.shape
 
 		for layer in self.layers:
@@ -45,8 +45,30 @@ class SNN(nn.Module):
 		return torch.stack(out, dim=1)
 
 	def test(self, x):
-		return self.forward(x, collect_states=True)
+		B, T, D = x.shape
 
+		for layer in self.layers:
+			layer.reset(B)
+
+		states = [{} for _ in self.layers]
+		for i, layer in enumerate(self.layers):
+			for key, value in layer.state.items():
+				states[i][key] = []
+
+		for t in range(T):
+			x_t = x[:, t, :]
+
+			for i, layer in enumerate(self.layers):
+				x_t = layer(x_t)
+				for key, value in layer.state.items():
+					states[i][key].append(value)
+
+
+		for i, layer in enumerate(self.layers):
+			for key, value in layer.state.items():
+				states[i][key] = torch.stack(states[i][key], dim=1).clone().detach()
+
+		return states
 
 
 
@@ -54,10 +76,17 @@ class DendriticSNN(SNN):
 	def __init__(self, config):
 		super().__init__()
 
+		n_in = config['n_inputs']
+		n_dendrites = config['n_dendrites']
+		n_hidden = config['n_hidden']
+		n_out = config['n_outputs']
+
 		self.layer_list = [
-			NeuronLayer(config['n_inputs'], config['n_dendrites'], config['n_hidden'], config),
-			NeuronLayer(config['n_hidden'], config['n_dendrites'], config['n_hidden'], config),
-			LinearReadoutLayer(config['n_hidden'], config['n_outputs'], config),
+			DendriteLayer(n_in, n_dendrites, n_hidden, config),
+			SomaLayer(n_hidden, config),
+			DendriteLayer(n_hidden, n_dendrites, n_hidden, config),
+			SomaLayer(n_hidden, config),
+			LinearReadoutLayer(n_hidden, n_out, config),
 		]
 
 		self.build()
@@ -75,6 +104,7 @@ if __name__ == "__main__":
 	from datasets.shd_prediction import build_loader
 	from utils.diagnosis import count_trainable_parameters
 	import matplotlib.pyplot as plt
+	from utils.nmda_init import initialise_nmda_weights
 
 	CONFIG['seed'] = 1234
 	CONFIG['type'] = 'gauss'
@@ -82,7 +112,6 @@ if __name__ == "__main__":
 	CONFIG['energy'] = 1.
 	CONFIG['sigma'] = 1.
 	CONFIG['gamma'] = 1.
-	CONFIG['dt'] = 1e-5
 	CONFIG['learning_rate'] = 1e-3
 	CONFIG['max_epochs'] = 1
 	CONFIG['steps_per_epoch'] = 1
@@ -94,12 +123,19 @@ if __name__ == "__main__":
 	x, y = next(iter(loader))
 	x = x.to(DEVICE)
 	model = DendriticSNN(CONFIG).to(DEVICE)
+	initialise_nmda_weights(model)
 	p = count_trainable_parameters(model)
 	print(p)
-	model.test(x*9999)
+	states = model.test(x*9)
+	u = states[4]['u'].cpu()
+	plt.imshow(u.detach().cpu()[0].T, vmin=-1, vmax=1, cmap='berlin')
+	plt.colorbar()
 	# plt.imshow(
 	# 	model(
 	# 		x*99999999
 	# 	)[0].detach().cpu()
 	# )
+
+
+
 # %%
