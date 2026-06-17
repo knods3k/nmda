@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils.settings import DEVICE
 from utils.surrogate import Surrogate
-from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, MultiplicativeDendriticLayer
+from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, CoupledDendriticLayer, AdditiveLayer, MultiplicativeLayer, AffineLayer
 
 N_HIDDEN = 256
 
@@ -91,8 +91,9 @@ class DendriticSNN(SNN):
 
 		self.build()
 
-class DendriticSNN_Multiplicative(SNN):
-	def __init__(self, config):
+
+class DendriticSNN_coupled(SNN):
+	def __init__(self, config, coupling_class):
 		super().__init__()
 
 		n_in = config['n_inputs']
@@ -101,14 +102,26 @@ class DendriticSNN_Multiplicative(SNN):
 		n_out = config['n_outputs']
 
 		self.layer_list = [
-			MultiplicativeDendriticLayer(n_in, n_dendrites, n_hidden, config),
+			CoupledDendriticLayer(n_in, n_dendrites, n_hidden, coupling_class,  config),
 			SomaLayer(n_hidden, config),
-			MultiplicativeDendriticLayer(n_hidden, n_dendrites, n_hidden, config),
+			CoupledDendriticLayer(n_hidden, n_dendrites, n_hidden, coupling_class, config),
 			SomaLayer(n_hidden, config),
 			LinearReadoutLayer(n_hidden, n_out, config),
 		]
 
 		self.build()
+
+class DendriticSNN_Additive(DendriticSNN_coupled):
+	def __init__(self, config):
+		super().__init__(config, AdditiveLayer)
+
+class DendriticSNN_Multiplicative(DendriticSNN_coupled):
+	def __init__(self, config):
+		super().__init__(config, MultiplicativeLayer)
+
+class DendriticSNN_Affine(DendriticSNN_coupled):
+	def __init__(self, config):
+		super().__init__(config, AffineLayer)
 
 
 # %%
@@ -116,7 +129,9 @@ class DendriticSNN_Multiplicative(SNN):
 
 ARCHITECTURES = {
 	'DendriticSNN': DendriticSNN,
+	'DendriticSNN_Additive': DendriticSNN_Additive,
 	'DendriticSNN_Multiplicative': DendriticSNN_Multiplicative,
+	'DendriticSNN_Affine': DendriticSNN_Affine,
 }
 
 if __name__ == "__main__":
@@ -142,12 +157,12 @@ if __name__ == "__main__":
 	loader = build_loader(1)
 	x, y = next(iter(loader))
 	x = x.to(DEVICE)
-	model = DendriticSNN(CONFIG).to(DEVICE)
+	model = DendriticSNN_Affine(CONFIG).to(DEVICE)
 	initialise_nmda_weights(model)
 	p = count_trainable_parameters(model)
 	print(p)
 	states = model.test(x*9)
-	u = states[4]['u'].cpu()
+	u = states[0]['u'].cpu()
 	plt.imshow(u.detach().cpu()[0].T, vmin=-1, vmax=1, cmap='berlin')
 	plt.colorbar()
 	# plt.imshow(

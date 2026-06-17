@@ -5,7 +5,7 @@ import torch.nn as nn
 from utils.settings import DEVICE, MACHINE_EPSILON, DTYPE
 
 
-class NeuronModel(nn.Module):
+class BiologicalModel(nn.Module):
 	def __init__(self, n_neurons, config, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
@@ -88,7 +88,7 @@ class ExponentialDecayFilter(nn.Module):
 		return (self.decay * u) + (self.drive * self.inv * i)
 
 
-class LI(NeuronModel):
+class LI(BiologicalModel):
 	def __init__(self, n_neurons, config, *args, **kwargs):
 		super().__init__(n_neurons, config, *args, **kwargs)
 
@@ -232,7 +232,7 @@ class MembraneIntegrator(nn.Module):
 
 
 
-class DendriteLayer(NeuronModel):
+class DendriteLayer(BiologicalModel):
 	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
 		super().__init__(n_dendrites * n_outputs, config, *args, **kwargs)
 
@@ -280,7 +280,7 @@ class DendriteLayer(NeuronModel):
 		return self.sum(self.simulate(x))
 
 
-class SomaLayer(NeuronModel):
+class SomaLayer(BiologicalModel):
 	def __init__(self, n_neurons, config, *args, **kwargs):
 		super().__init__(n_neurons, config, *args, **kwargs)
 
@@ -344,14 +344,52 @@ class MultiplicativeLayer(ParallelLayer):
 		)
 		return torch.prod(outputs, dim=0)
 
+class AdditiveLayer(ParallelLayer):
+	def __init__(self, layer_list, *args, **kwargs):
+		super().__init__(layer_list, *args, **kwargs)
 
-class MultiplicativeDendriticLayer(nn.Module):
-	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
+
+	def couple(self, x):
+		outputs = torch.stack(
+			[layer.forward(x) for layer in self.layer_list],
+			dim=0
+		)
+		return torch.sum(outputs, dim=0)
+
+
+class AffineLayer(ParallelLayer):
+	def __init__(self, layer_list, *args, **kwargs):
+		super().__init__(layer_list, *args, **kwargs)
+
+		self.weight = nn.Parameter(torch.tensor((1,), device=DEVICE, dtype=DTYPE))
+		# self.bias = nn.Parameter(torch.tensor((1,), device=DEVICE, dtype=DTYPE))
+
+	def couple(self, x):
+		outputs = torch.stack(
+			[layer.forward(x) for layer in self.layer_list],
+			dim=0
+		)
+		return torch.prod(outputs, dim=0) + self.weight * torch.sum(outputs, dim=0)
+
+# d Ax
+# d + Ax
+# d Ax + Ax + b
+# (d + 1) (Ax + b)
+# (w * d) (Ax)
+# d \in [-1,1]
+# LIF without bias
+
+class CoupledDendriticLayer(nn.Module):
+	def __init__(self, n_inputs, n_dendrites, n_outputs, CouplingClass, config, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
 		self.dendrites = DendriteLayer(n_inputs, n_dendrites, n_outputs, config)
 		self.direct = NonNegativeLinear(n_inputs, n_outputs, config)
-		self.multiply = MultiplicativeLayer([self.dendrites, self.direct])
+		self.coupling_layer = CouplingClass([self.dendrites, self.direct])
+
+	@property
+	def state(self):
+		return self.dendrites.state
 
 
 	def reset(self, batch_size):
@@ -359,10 +397,10 @@ class MultiplicativeDendriticLayer(nn.Module):
 
 
 	def forward(self, x):
-		return self.multiply.couple(x)
+		return self.coupling_layer.couple(x)
 
 
-class CompartmentLayer(NeuronModel):
+class CompartmentLayer(BiologicalModel):
 	def __init__(self, in_features, out_features, config, *args, **kwargs):
 		super().__init__(in_features, config, *args, **kwargs)
 
@@ -438,7 +476,7 @@ if __name__ == '__main__':
 	CONFIG['surrogate_spike'] = Surrogate()
 
 	x = torch.randn((1,700), device=DEVICE, dtype=DTYPE)
-	model = MultiplicativeDendriticLayer(700, 3, 64, CONFIG)
+	model = CoupledDendriticLayer(700, 3, 64, CONFIG)
 	model.to(DEVICE)
 	model.reset(1)
 	for i in range(99):
