@@ -236,6 +236,7 @@ class DendriteLayer(BiologicalModel):
 	def __init__(self, n_inputs, n_dendrites, n_outputs, config, *args, **kwargs):
 		super().__init__(n_dendrites * n_outputs, config, *args, **kwargs)
 
+		self.n_dendrites = n_dendrites
 		self.nmda = NMDA_Receptor(n_dendrites * n_outputs, config)
 		self.ampa = AMPA_Receptor(n_dendrites * n_outputs, config)
 		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
@@ -284,6 +285,7 @@ class SomaLayer(BiologicalModel):
 	def __init__(self, n_neurons, config, *args, **kwargs):
 		super().__init__(n_neurons, config, *args, **kwargs)
 
+		self.n_neurons = n_neurons
 		self.lif = LIF(n_neurons, config)
 		self.state = {'s': None}
 
@@ -292,6 +294,26 @@ class SomaLayer(BiologicalModel):
 
 	def forward(self, x):
 		out = self.lif.forward(x)
+		self.state['s'] = self.lif.state['s']
+		return out
+
+
+class LIF_Layer(SomaLayer):
+	def __init__(self, n_in, n_out, config, *args, **kwargs):
+		super().__init__(n_out, config, *args, **kwargs)
+
+		self.n_neurons = n_out
+		self.lif = LIF(n_out, config)
+		self.state = {'s': None}
+		self.synapses = nn.Linear(n_in, n_out, config['activate_bias'])
+
+	def reset(self, batch_size):
+		self.lif.reset(batch_size)
+
+	def forward(self, x):
+		out = self.lif.forward(
+			self.synapses(x)
+		)
 		self.state['s'] = self.lif.state['s']
 		return out
 
@@ -383,6 +405,7 @@ class CoupledDendriticLayer(nn.Module):
 	def __init__(self, n_inputs, n_dendrites, n_outputs, CouplingClass, config, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
+		self.n_dendrites = n_dendrites
 		self.dendrites = DendriteLayer(n_inputs, n_dendrites, n_outputs, config)
 		self.direct = NonNegativeLinear(n_inputs, n_outputs, config)
 		self.coupling_layer = CouplingClass([self.dendrites, self.direct])
@@ -476,7 +499,7 @@ if __name__ == '__main__':
 	CONFIG['surrogate_spike'] = Surrogate()
 
 	x = torch.randn((1,700), device=DEVICE, dtype=DTYPE)
-	model = CoupledDendriticLayer(700, 3, 64, CONFIG)
+	model = CoupledDendriticLayer(700, 3, 64, AffineLayer, CONFIG)
 	model.to(DEVICE)
 	model.reset(1)
 	for i in range(99):

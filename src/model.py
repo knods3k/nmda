@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils.settings import DEVICE
 from utils.surrogate import Surrogate
-from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, CoupledDendriticLayer, AdditiveLayer, MultiplicativeLayer, AffineLayer
+from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, CoupledDendriticLayer, AdditiveLayer, MultiplicativeLayer, AffineLayer, LIF_Layer
 
 N_HIDDEN = 256
 
@@ -48,7 +48,9 @@ class SNN(nn.Module):
 		B, T, D = x.shape
 
 		for layer in self.layers:
-			layer.reset(B)
+			if hasattr(layer, 'reset'):
+				layer.reset(B)
+
 
 		states = [{} for _ in self.layers]
 		for i, layer in enumerate(self.layers):
@@ -69,6 +71,26 @@ class SNN(nn.Module):
 				states[i][key] = torch.stack(states[i][key], dim=1).clone().detach()
 
 		return states
+
+
+
+class LIF_SNN(SNN):
+	def __init__(self, config):
+		super().__init__()
+
+		config['learnable'] = 'all'
+		n_in = config['n_inputs']
+		n_dendrites = config['n_dendrites']
+		n_hidden = config['n_hidden']
+		n_out = config['n_outputs']
+
+		self.layer_list = [
+			LIF_Layer(n_in, n_hidden * n_dendrites, config),
+			LIF_Layer(n_hidden * n_dendrites, n_hidden, config),
+			LinearReadoutLayer(n_hidden, n_out, config),
+		]
+
+		self.build()
 
 
 
@@ -128,6 +150,7 @@ class DendriticSNN_Affine(DendriticSNN_coupled):
 
 
 ARCHITECTURES = {
+	'LIF_SNN': LIF_SNN,
 	'DendriticSNN': DendriticSNN,
 	'DendriticSNN_Additive': DendriticSNN_Additive,
 	'DendriticSNN_Multiplicative': DendriticSNN_Multiplicative,
@@ -154,17 +177,22 @@ if __name__ == "__main__":
 	CONFIG['learnable'] = 'none'
 
 	CONFIG['surrogate_spike'] = Surrogate()
+	CONFIG['n_dendrites'] = 2
 	loader = build_loader(1)
 	x, y = next(iter(loader))
 	x = x.to(DEVICE)
+
+	model = LIF_SNN(CONFIG).to(DEVICE)
+	p = count_trainable_parameters(model)
+
 	model = DendriticSNN_Affine(CONFIG).to(DEVICE)
 	initialise_nmda_weights(model)
-	p = count_trainable_parameters(model)
-	print(p)
-	states = model.test(x*9)
-	u = states[0]['u'].cpu()
-	plt.imshow(u.detach().cpu()[0].T, vmin=-1, vmax=1, cmap='berlin')
-	plt.colorbar()
+	q = count_trainable_parameters(model)
+	print(p - q)
+	# states = model.test(x*9)
+	# u = states[0]['s'].cpu()
+	# plt.imshow(u.detach().cpu()[0].T, vmin=-1, vmax=1, cmap='berlin')
+	# plt.colorbar()
 	# plt.imshow(
 	# 	model(
 	# 		x*99999999
