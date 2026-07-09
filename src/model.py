@@ -83,6 +83,8 @@ class LIF_SNN(SNN):
 		n_hidden = config['n_hidden']
 		n_out = config['n_outputs']
 
+		config['learnable'] = 'all'
+
 		self.layer_list = [
 			SynapticLayer(n_in, n_hidden, config),
 			SomaLayer(n_hidden, config),
@@ -178,7 +180,8 @@ if __name__ == "__main__":
 	CONFIG['learnable'] = 'none'
 
 	CONFIG['surrogate_spike'] = Surrogate()
-	CONFIG['n_dendrites'] = 2
+	# CONFIG['n_dendrites'] = 4
+	# CONFIG['n_hidden'] = 128
 	loader = build_loader(1)
 	x, y = next(iter(loader))
 	x = x.to(DEVICE)
@@ -189,7 +192,7 @@ if __name__ == "__main__":
 	model = DendriticSNN_Affine(CONFIG).to(DEVICE)
 	initialise_nmda_weights(model)
 	q = count_trainable_parameters(model)
-	print(p - q)
+	print(p / q)
 	# states = model.test(x*9)
 	# u = states[0]['s'].cpu()
 	# plt.imshow(u.detach().cpu()[0].T, vmin=-1, vmax=1, cmap='berlin')
