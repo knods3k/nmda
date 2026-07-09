@@ -73,18 +73,49 @@ class NonNegativeLinear(nn.Module):
 	def forward(self, input):
 		return nn.functional.linear(input, self.weight.abs(), self.bias.abs())
 
+class SynapticLayer(BiologicalModel):
+	def __init__(self, in_features, out_features, config):
+		super().__init__(out_features, config)
+		self.in_features = in_features
+		self.out_features = out_features
+		self.weight = nn.Parameter(torch.randn(out_features, in_features, dtype=DTYPE, device=DEVICE))
+		if config['activate_bias']:
+			self.bias = nn.Parameter(torch.randn(out_features, dtype=DTYPE, device=DEVICE))
+		else:
+			self.bias = torch.zeros(1, dtype=DTYPE, device=DEVICE)
+
+	def forward(self, input):
+		return nn.functional.linear(input, self.weight, self.bias)
+
 
 class ExponentialDecayFilter(nn.Module):
 	def __init__(self, du_log, dt_log, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
-		self.dt = torch.exp(dt_log)
-		self.rate = torch.exp(du_log)
-		self.inv = (1 / self.rate)
-		self.decay = torch.exp(-self.rate * self.dt)
-		self.drive = -torch.expm1(-self.rate * self.dt)
+		self.du_log = du_log
+		self.dt_log = dt_log
 
-	def __call__(self, u, i):
+	@property
+	def dt(self):
+		return torch.exp(self.dt_log)
+
+	@property
+	def rate(self):
+		return torch.exp(self.du_log)
+
+	@property
+	def inv(self):
+		return (1 / self.rate)
+
+	@property
+	def decay(self):
+		return torch.exp(-self.rate * self.dt)
+
+	@property
+	def drive(self):
+		return -torch.expm1(-self.rate * self.dt)
+
+	def forward(self, u, i):
 		return (self.decay * u) + (self.drive * self.inv * i)
 
 
@@ -298,25 +329,6 @@ class SomaLayer(BiologicalModel):
 		return out
 
 
-class LIF_Layer(SomaLayer):
-	def __init__(self, n_in, n_out, config, *args, **kwargs):
-		super().__init__(n_out, config, *args, **kwargs)
-
-		self.n_neurons = n_out
-		self.lif = LIF(n_out, config)
-		self.state = {'s': None}
-		self.synapses = nn.Linear(n_in, n_out, config['activate_bias'])
-
-	def reset(self, batch_size):
-		self.lif.reset(batch_size)
-
-	def forward(self, x):
-		out = self.lif.forward(
-			self.synapses(x)
-		)
-		self.state['s'] = self.lif.state['s']
-		return out
-
 
 
 class LinearReadoutLayer(nn.Module):
@@ -391,7 +403,7 @@ class AffineLayer(ParallelLayer):
 			[layer.forward(x) for layer in self.layer_list],
 			dim=0
 		)
-		return torch.prod(outputs, dim=0) + self.weight * torch.sum(outputs, dim=0)
+		return torch.prod(outputs, dim=0) + (self.weight * torch.sum(outputs, dim=0))
 
 # d Ax
 # d + Ax

@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils.settings import DEVICE
 from utils.surrogate import Surrogate
-from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, CoupledDendriticLayer, AdditiveLayer, MultiplicativeLayer, AffineLayer, LIF_Layer
+from neurons import DendriteLayer, SomaLayer, LinearReadoutLayer, CoupledDendriticLayer, AdditiveLayer, MultiplicativeLayer, AffineLayer, SynapticLayer
 
 N_HIDDEN = 256
 
@@ -78,15 +78,16 @@ class LIF_SNN(SNN):
 	def __init__(self, config):
 		super().__init__()
 
-		config['learnable'] = 'all'
 		n_in = config['n_inputs']
 		n_dendrites = config['n_dendrites']
 		n_hidden = config['n_hidden']
 		n_out = config['n_outputs']
 
 		self.layer_list = [
-			LIF_Layer(n_in, n_hidden * n_dendrites, config),
-			LIF_Layer(n_hidden * n_dendrites, n_hidden, config),
+			SynapticLayer(n_in, n_hidden, config),
+			SomaLayer(n_hidden, config),
+			SynapticLayer(n_hidden, n_hidden, config),
+			SomaLayer(n_hidden, config),
 			LinearReadoutLayer(n_hidden, n_out, config),
 		]
 
