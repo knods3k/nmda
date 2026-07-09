@@ -88,10 +88,8 @@ class SynapticLayer(BiologicalModel):
 		return nn.functional.linear(input, self.weight, self.bias)
 
 
-class ExponentialDecayFilter(nn.Module):
+class ExponentialDecayFilter():
 	def __init__(self, du_log, dt_log, *args, **kwargs):
-		super().__init__(*args, **kwargs)
-
 		self.du_log = du_log
 		self.dt_log = dt_log
 
@@ -115,7 +113,7 @@ class ExponentialDecayFilter(nn.Module):
 	def drive(self):
 		return -torch.expm1(-self.rate * self.dt)
 
-	def forward(self, u, i):
+	def __call__(self, u, i):
 		return (self.decay * u) + (self.drive * self.inv * i)
 
 
