@@ -4,6 +4,19 @@ import torch.nn as nn
 
 from utils.settings import DEVICE, MACHINE_EPSILON, DTYPE
 
+AVG_RATE = 1e-5
+AVG_LENGTH = 100
+
+
+
+class SpikeToRate(nn.Module):
+	def __init__(self, dt, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.scale = 1 / dt
+
+	def forward(self, x):
+		return self.scale * x
+
 
 class BiologicalModel(nn.Module):
 	def __init__(self, n_neurons, config, *args, **kwargs):
@@ -70,8 +83,12 @@ class NonNegativeLinear(nn.Module):
 		else:
 			self.bias = torch.zeros(1, dtype=DTYPE, device=DEVICE)
 
-	def forward(self, input):
-		return nn.functional.linear(input, self.weight.abs(), self.bias.abs())
+		self.scale = SpikeToRate(config['dt'])
+
+	def forward(self, x):
+		x = self.scale(x)
+		return nn.functional.linear(x, self.weight.abs(), self.bias.abs())
+
 
 class SynapticLayer(BiologicalModel):
 	def __init__(self, in_features, out_features, config):
@@ -84,8 +101,11 @@ class SynapticLayer(BiologicalModel):
 		else:
 			self.bias = torch.zeros(1, dtype=DTYPE, device=DEVICE)
 
-	def forward(self, input):
-		return nn.functional.linear(input, self.weight, self.bias)
+		self.scale = SpikeToRate(config['dt'])
+
+	def forward(self, x):
+		x = self.scale(x)
+		return nn.functional.linear(x, self.weight, self.bias)
 
 
 class ExponentialDecayFilter():
@@ -271,7 +291,7 @@ class DendriteLayer(BiologicalModel):
 		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
 		self.integrator = MembraneIntegrator(config['du_dend'], config['dt'])
 
-		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 2)
+		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 1)
 		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
 
 		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
@@ -279,6 +299,27 @@ class DendriteLayer(BiologicalModel):
 		self.state = {'u': None}
 
 		self.sum = DendriticSummation(n_dendrites, config)
+
+		self.set_gain()
+
+
+	def set_gain(self):
+
+			c0 = self.nmda.gam0
+			c1 = self.nmda.gam1
+			umin = (1/2) - torch.sqrt(torch.tensor((1/4) - (1/c1)))
+			umax = (1/c1) * torch.log(torch.tensor((c1/4) - 1)) + c0
+			rho_u = self.nmda.du_dend_log.exp()
+			gmin = rho_u * (umin / self.nmda.h(umin, c0, c1)*(1-umin))
+			gmax = rho_u * (umax / self.nmda.h(umax, c0, c1)*(1-umax))
+
+			rho_d = self.nmda.dv_log.exp()
+			rho_r = self.nmda.dw_log.exp()
+
+			time_weighting = ((1- torch.exp(-rho_d*AVG_LENGTH)) / rho_d) - ((1- torch.exp(-rho_r*AVG_LENGTH)) / rho_r)
+
+			self.gain = (gmax *time_weighting) / AVG_RATE
+
 
 	def reset(self, batch_size):
 		super().reset(batch_size)
@@ -288,6 +329,7 @@ class DendriteLayer(BiologicalModel):
 
 
 	def simulate(self, x):
+		x = x * self.gain
 		gate = self.surrogate_routing(self.routing)
 		x_exc = gate * x
 		x_inh = (1-gate) * x
@@ -329,19 +371,23 @@ class SomaLayer(BiologicalModel):
 
 
 
-class LinearReadoutLayer(nn.Module):
+class LinearReadoutLayer(BiologicalModel):
 	def __init__(self, n_inputs, n_outputs, config, *args, **kwargs):
-		super().__init__(*args, **kwargs)
+		super().__init__(n_outputs, config, *args, **kwargs)
 
 		self.li = LI(n_outputs, config)
 		self.linear = nn.Linear(n_inputs, n_outputs, config['activate_bias'])
 		self.state = {'u': None}
+
+		self.scale = SpikeToRate(config['dt'])
+
 
 	def reset(self, batch_size):
 		self.li.reset(batch_size)
 
 
 	def forward(self, x):
+		x = self.scale(x)
 		out = self.li.forward(
 					self.linear(
 						x
