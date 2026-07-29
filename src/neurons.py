@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from utils.settings import DEVICE, MACHINE_EPSILON, DTYPE
 
-AVG_RATE = 1e-5
+AVG_RATE = 1e-3
 AVG_LENGTH = 100
 
 
@@ -13,6 +13,7 @@ class SpikeToRate(nn.Module):
 	def __init__(self, dt, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.scale = 1 / dt
+		# self.scale = 1
 
 	def forward(self, x):
 		return self.scale * x
@@ -77,7 +78,11 @@ class NonNegativeLinear(nn.Module):
 		super().__init__()
 		self.in_features = in_features
 		self.out_features = out_features
-		self.weight = nn.Parameter(torch.randn(out_features, in_features, dtype=DTYPE, device=DEVICE))
+		self.weight = nn.Parameter(
+			torch.randn(
+				out_features, in_features, dtype=DTYPE, device=DEVICE
+				) * 1e0
+			)
 		if config['activate_bias']:
 			self.bias = nn.Parameter(torch.randn(out_features, dtype=DTYPE, device=DEVICE))
 		else:
@@ -291,7 +296,7 @@ class DendriteLayer(BiologicalModel):
 		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
 		self.integrator = MembraneIntegrator(config['du_dend'], config['dt'])
 
-		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 1)
+		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 0)
 		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
 
 		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
@@ -391,7 +396,7 @@ class LinearReadoutLayer(BiologicalModel):
 		out = self.li.forward(
 					self.linear(
 						x
-					)
+					) * 1e0
 				)
 		self.state['u'] = self.li.state['u']
 		return out
