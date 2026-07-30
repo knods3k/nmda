@@ -12,8 +12,8 @@ AVG_LENGTH = 100
 class SpikeToRate(nn.Module):
 	def __init__(self, dt, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.scale = 1 / dt
-		# self.scale = 1
+		# self.scale = 1 / dt
+		self.scale = 1
 
 	def forward(self, x):
 		return self.scale * x
@@ -81,7 +81,7 @@ class NonNegativeLinear(nn.Module):
 		self.weight = nn.Parameter(
 			torch.randn(
 				out_features, in_features, dtype=DTYPE, device=DEVICE
-				) * 1e0
+				)
 			)
 		if config['activate_bias']:
 			self.bias = nn.Parameter(torch.randn(out_features, dtype=DTYPE, device=DEVICE))
@@ -396,7 +396,7 @@ class LinearReadoutLayer(BiologicalModel):
 		out = self.li.forward(
 					self.linear(
 						x
-					) * 1e0
+					)
 				)
 		self.state['u'] = self.li.state['u']
 		return out
