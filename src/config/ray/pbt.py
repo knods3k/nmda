@@ -24,7 +24,7 @@ CONFIG = {
 	# "dt": 1e-3,
 	"gam0": 0.75,
 	"gam1": 6.66,
-	# "dendritic_scaling": 50,
+	"dendritic_scaling": 50,
 	"relative_concentration": 1.,
 	"coupling_conductance": 1.,
 	"sigma": tune.loguniform(.001, 1.),
