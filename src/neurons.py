@@ -296,7 +296,7 @@ class DendriteLayer(BiologicalModel):
 		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
 		self.integrator = MembraneIntegrator(config['du_dend'], config['dt'])
 
-		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 0)
+		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 1)
 		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
 
 		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
