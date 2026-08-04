@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.special import lambertw as W
 from scipy.special import expit as sigmoid
-from neurons import DendriteLayer
+from neurons import DendriteLayer, CoupledDendriticLayer
 import torch
 # from ray_training import build_loader
 from utils.settings import DTYPE, DEVICE
@@ -24,7 +24,11 @@ def h(u, gam0=.5, gam1=8.):
 
 def initialise_nmda_weights(model, avg_rate=AVG_RATE, t=MAX_LENGTH, seed=None):
 	for layer in model.layers:
-		# avg_rate *= 0.02
+		avg_rate *= 1e-1
+		try:
+			layer = layer.dendrites
+		except AttributeError:
+			pass
 		if isinstance(layer, DendriteLayer):
 			c0 = layer.nmda.gam0
 			c1 = layer.nmda.gam1
@@ -65,7 +69,7 @@ def construct_nonnegative_matrix(avg_rate, n_inputs, n_outputs, g_min, g_max, se
 	g_target = 	g_max + (sigma * z)
 	A = torch.randn((n_inputs, n_outputs), device=DEVICE, dtype=DTYPE).abs()
 	current = (A * avg_rate[:,None]).sum(dim=0)
-	eps = 1e-5
+	eps = 1e-12
 	scale = g_target / (current + eps)
 	A = A * scale
 
