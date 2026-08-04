@@ -4,7 +4,7 @@ from ray_training import build_loader, \
 	train
 from utils.settings import DEVICE
 from utils.nmda_init import initialise_nmda_weights
-from neurons import NeuronModel
+from neurons import BiologicalModel
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 def observe_states(model, x, layer_idx, state_str):
 
 	with torch.no_grad():
-		if isinstance(model.layers[layer_idx], NeuronModel):
+		if isinstance(model.layers[layer_idx], BiologicalModel):
 			states = model.test(x)
 			T = x.shape[1]
 			N = states[0][layer_idx][state_str].shape[1]
