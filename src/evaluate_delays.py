@@ -13,7 +13,6 @@ from utils.diagnosis import get_n_neurons, get_n_dendrites, count_trainable_para
 
 N = 2264
 MAX_DELAY = 367
-NOISE_RATE = 1e-2
 
 # N = N//20
 # MAX_DELAY = MAX_DELAY//5
@@ -21,16 +20,12 @@ NOISE_RATE = 1e-2
 cmap = plt.get_cmap('Set1',lut=4)
 
 def evaluate_delays(model, test_x, test_y, max_delay):
-	noise = torch.tensor(
-		np.random.poisson(NOISE_RATE, test_x.shape[1:])
-	).to(DEVICE)
-
 	delays = np.arange(0,max_delay)
 	accuracies_mean = np.zeros_like(delays, dtype=float)
 	accuracies_std = np.zeros_like(delays, dtype=float)
 	with torch.no_grad():
 		model.eval()
-		accuracy = (model(test_x + noise)[:,-max_delay:,:].argmax(-1).T == test_y)
+		accuracy = (model(test_x)[:,-max_delay:,:].argmax(-1).T == test_y)
 		accuracy = accuracy.cpu().numpy().astype(float)
 
 	for i, delay in enumerate(delays):
@@ -46,8 +41,10 @@ def plot_accuracies(directory, model_list, exclude_list):
 	for i, model_dir in enumerate(model_list):
 		if model_dir in exclude_list:
 			continue
-
-		model = retrieve_model(directory + model_dir).to(DEVICE)
+		try:
+			model = retrieve_model(directory + model_dir).to(DEVICE)
+		except:
+			continue
 
 		delays, accuracies_mean, accuracies_std = evaluate_delays(model, test_x, test_y, max_delay)
 		# accuracies_mean /= count_trainable_parameters(model)
@@ -56,11 +53,11 @@ def plot_accuracies(directory, model_list, exclude_list):
 		d = get_n_dendrites(model)
 		if d == None:
 			d = 1
-			ls = "--"
+			ls = ":"
 		else:
 			ls = "-"
 
-		name_str = type(model).__name__ + f"_{n}_{d}"
+		name_str = names_dict[type(model).__name__] + f"_{n}_{d}"
 		line, = plt.plot(
 			RELATIVE_DELAY,
 			accuracies_mean,
@@ -104,24 +101,27 @@ if __name__ == '__main__':
 			# "42914",
 			]
 		model_list = [
-			# "47800",
-			"47838",
-			"49270",
-			# "49281",
-			"50292",
-			# "50293",
-			# "51428",
-			"52659",
-			"52660",
+			"43842",
+			"43693",
+			"43207",
+			"43230",
+			"43545",
 		]
 		exclude_list = [
 			"42391",
 		]
 
-		model_directory = '/Users/cankayser/Downloads/ray_results/'
+		model_directory = '/Users/cankayser/Downloads/results/'
 		baseline_directory = '/Users/cankayser/Downloads/results_baseline/'
 		# model_list = list(listdir(model_directory))
-		# model_list.remove('.DS_Store')
+
+
+		names_dict = {
+			"LIF_SNN": "LIF",
+			"NMDA_AMPA_LIF_SNN": "NMDA",
+			"NMDA_AMPA_GABA_LIF_SNN": "NMDA",
+			"NMDA_READOUT_SNN": "NMDA Readout",
+		}
 
 		test_loader = build_test_loader(N, delay_steps=max_delay)
 
@@ -135,7 +135,7 @@ if __name__ == '__main__':
 		delays = np.arange(0,max_delay)
 		RELATIVE_DELAY = ((delays / T_max)) #* 100
 
-		# plot_accuracies(baseline_directory, baseline_list, exclude_list)
+		plot_accuracies(baseline_directory, baseline_list, exclude_list)
 		accuracies = plot_accuracies(model_directory, model_list, exclude_list)
 		# mean = accuracies.mean(axis=0)
 		# min = accuracies.min(axis=0)
@@ -150,16 +150,36 @@ if __name__ == '__main__':
 		plt.plot(RELATIVE_DELAY, RELATIVE_DELAY*0 + 5, ls=':', c='grey', label='Guessing Accuracy')
 		plt.xlabel(r'Delay Period / Sequence Length [1]')
 		plt.ylabel(r'Accuracy [$\%$]')
-		plt.ylim(0,100)
+		plt.ylim(35,65)
 		# plt.yscale('log')
 		plt.legend()
-		# plt.savefig('/Users/cankayser/Downloads/evaluate_delays')
-		plt.title(f"SNR = {NOISE_RATE*10:1.0e}")
+		plt.savefig('/Users/cankayser/Downloads/evaluate_delays')
 		plt.show()
 
- #%%
-		for d in model_list:
-			model = retrieve_model(model_directory + d)
-			print(f'{type(model).__name__} {get_n_neurons(model)} {get_n_dendrites(model)} \n {count_trainable_parameters(model):.1e}' )
 
-# %%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		# %%
