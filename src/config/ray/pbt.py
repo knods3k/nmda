@@ -20,7 +20,7 @@ CONFIG = {
 	"dv": (1/50),
 	"dw": (1/10),
 	"dg": (1/3),
-	"dt": tune.loguniform(1e-2,1),
+	"dt": tune.loguniform(1e-3,1e-1),
 	# "dt": 1e-2,
 	"gam0": 0.75,
 	"gam1": 6.66,
