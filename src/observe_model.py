@@ -9,14 +9,14 @@ from utils.nmda_init import initialise_nmda_weights
 from config.ray.pbt import CONFIG
 # %%
 N = 2264
-N = N // 100
+N = 1
 
 dir = '/Users/cankayser/Downloads/ray_results/58953'
 
 
 
 
-CONFIG['seed'] = 1
+CONFIG['seed'] = 16
 CONFIG['type'] = 'gauss'
 CONFIG['id'] = 'debug'
 CONFIG['energy'] = 1.
@@ -65,11 +65,14 @@ for i, layer in enumerate(model.layers):
 	for state_name, state in states[i].items():
 		if i == len(model.layers) - 1:
 			state = torch.softmax(state, dim=-1)
+			state[0,::9, test_y] = np.nan
 		plt.imshow(state[0].detach().cpu().T, interpolation='None', cmap='berlin', vmin=-1, vmax=1)
 		# plt.plot(state[0].detach().cpu().T)
 		plt.show()
 	# if i == 0:
 		# break
+
+
 
 
 
