@@ -175,6 +175,7 @@ def train_catch_oom(config=None):
 			tune.report( {'loss':float("inf"), 'evaluation':float("inf")} )
 
 
+#%%
 if __name__ == '__main__':
 
 	from config.ray.pbt import CONFIG
@@ -193,7 +194,8 @@ if __name__ == '__main__':
 	CONFIG['batch_size'] = 3
 	CONFIG['learnable'] = 'none'
 	CONFIG['noise_variance'] = 0
-	CONFIG['architecture'] = 'NMDA_AMPA_LIF_SNN'
+	CONFIG['log_dropout_rate'] = 5.
+	CONFIG['architecture'] = 'DendriticSNN_Affine'
 
 	# with torch.autograd.detect_anomaly():
 	# 	train(CONFIG)
