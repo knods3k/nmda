@@ -1,4 +1,5 @@
 #%%
+#%%
 import torch
 import torch.nn as nn
 
@@ -59,20 +60,6 @@ class DendriticSummation(nn.Module):
 
 
 
-class NonNegativeLinear(nn.Module):
-	def __init__(self, in_features, out_features, config):
-		super().__init__()
-		self.in_features = in_features
-		self.out_features = out_features
-		self.weight = nn.Parameter(torch.randn(out_features, in_features, dtype=DTYPE, device=DEVICE))
-		if config['activate_bias']:
-			self.bias = nn.Parameter(torch.randn(out_features, dtype=DTYPE, device=DEVICE))
-		else:
-			self.bias = torch.zeros(1, dtype=DTYPE, device=DEVICE)
-
-	def forward(self, input):
-		return nn.functional.linear(input, self.weight.abs(), self.bias.abs())
-
 class SynapticLayer(BiologicalModel):
 	def __init__(self, in_features, out_features, config):
 		super().__init__(out_features, config)
@@ -84,8 +71,23 @@ class SynapticLayer(BiologicalModel):
 		else:
 			self.bias = torch.zeros(1, dtype=DTYPE, device=DEVICE)
 
+		if 'log_dropout_rate' in config:
+			self.dropout = nn.Dropout(
+				torch.exp(torch.tensor(-config['log_dropout_rate']))
+			)
+		else:
+			self.dropout = lambda _: _
+
 	def forward(self, input):
-		return nn.functional.linear(input, self.weight, self.bias)
+		return nn.functional.linear(input, self.dropout(self.weight), self.bias)
+
+class NonNegativeLinear(SynapticLayer):
+	def __init__(self, in_features, out_features, config):
+		super().__init__(in_features, out_features, config)
+
+	def forward(self, input):
+		return nn.functional.linear(input, self.dropout(self.weight.abs()), self.bias.abs())
+
 
 
 class ExponentialDecayFilter():
@@ -334,7 +336,7 @@ class LinearReadoutLayer(nn.Module):
 		super().__init__(*args, **kwargs)
 
 		self.li = LI(n_outputs, config)
-		self.linear = nn.Linear(n_inputs, n_outputs, config['activate_bias'])
+		self.linear = SynapticLayer(n_inputs, n_outputs, config)
 		self.state = {'u': None}
 
 	def reset(self, batch_size):

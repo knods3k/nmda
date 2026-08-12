@@ -40,6 +40,7 @@ CONFIG = {
 	"patience": 128,
 	"evaluation": 'accuracy',
 	"noise_variance": tune.loguniform(1e-5,1.),
+	"log_dropout_rate": tune.loguniform(1,5),
 	"seed": tune.randint(0, 9999),
 	"id": ID,
 	"already_initialised": [],
