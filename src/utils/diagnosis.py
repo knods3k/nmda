@@ -1,6 +1,7 @@
 #%%
 import torch
 import matplotlib.pyplot as plt
+from neurons import LIF, DendriteLayer, SomaLayer
 
 def get_all_parameters(model):
 	return torch.cat([p.data.view(-1).cpu() for p in model.parameters() if p.requires_grad])
@@ -27,8 +28,20 @@ def count_trainable_parameters(model):
 
 def get_n_neurons(model):
 	for l in model.layers:
-		if type(l).__name__ == 'LIF':
-			return l.n_neurons
+		try:
+			n = l.n_neurons
+			return n
+		except:
+			continue
+	return None
+
+def get_n_dendrites(model):
+	for l in model.layers:
+		try:
+			n = l.n_dendrites
+			return n
+		except:
+			continue
 	return None
 
 # %%
