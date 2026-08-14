@@ -47,19 +47,27 @@ def evaluate_test_loss(model, test_x, test_y):
 			test_loss = CRITERION(model(test_x), test_y)
 		return test_loss
 
-def evaluate_accuracy(model, test_x, test_y):
+def evaluate_last_accuracy(model, test_x, test_y):
 		with torch.no_grad():
 			model.eval()
 			accuracy = (model(test_x)[:,-1,:].argmax(-1) == test_y).float().mean()
+		return -accuracy
+
+def evaluate_avg_accuracy(model, test_x, test_y):
+		with torch.no_grad():
+			model.eval()
+			accuracy = (model(test_x).mean(dim=1).argmax(-1) == test_y).float().mean()
 		return -accuracy
 
 def build_evaluation_function(config):
 	if config['evaluation'] == 'test_loss':
 		return evaluate_test_loss
 
-	if config['evaluation'] == 'accuracy':
-		return evaluate_accuracy
+	if config['evaluation'] == 'accuracy_last':
+		return evaluate_last_accuracy
 
+	if config['evaluation'] == 'accuracy_avg':
+		return evaluate_avg_accuracy
 
 def catch_nan(loss):
 	if torch.isnan(loss) or torch.isinf(loss):
@@ -191,7 +199,7 @@ if __name__ == '__main__':
 	CONFIG['learning_rate'] = 1e-3
 	CONFIG['max_epochs'] = 1
 	CONFIG['steps_per_epoch'] = 1
-	CONFIG['batch_size'] = 3
+	CONFIG['batch_size'] = 1024
 	CONFIG['learnable'] = 'none'
 	CONFIG['noise_variance'] = 0
 	CONFIG['log_dropout_rate'] = 5.
