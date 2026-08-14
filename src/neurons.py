@@ -78,6 +78,12 @@ class SynapticLayer(BiologicalModel):
 		else:
 			self.dropout = lambda _: _
 
+	# 	if config['batch_norm']:
+	# 		self.batch_norm_1d = torch.nn.BatchNorm1d(out_features)
+
+	# def normalize_batch(self, x):
+	# 	return self.batch_norm_1d(x.)
+
 	def forward(self, input):
 		return nn.functional.linear(input, self.dropout(self.weight), self.bias)
 
@@ -273,7 +279,7 @@ class DendriteLayer(BiologicalModel):
 		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
 		self.integrator = MembraneIntegrator(config['du_dend'], config['dt'])
 
-		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 2)
+		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 0)
 		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
 
 		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
