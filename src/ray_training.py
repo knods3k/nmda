@@ -179,8 +179,9 @@ def train(config=None):
 def train_catch_oom(config=None):
 	try:
 		train(config)
-	except MemoryError:
-			tune.report( {'loss':float("inf"), 'evaluation':float("inf")} )
+	except:
+		tune.report( {'loss':float("inf"), 'evaluation':float("inf")} )
+		config['batch_size'] = config['batch_size'] // 2
 
 
 #%%
@@ -226,6 +227,6 @@ if __name__ == '__main__':
 	model.to(DEVICE)
 	model(x)
 
-	train(config)
+	train_catch_oom(config)
 
 # %%
