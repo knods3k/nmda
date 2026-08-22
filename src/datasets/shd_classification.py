@@ -6,6 +6,11 @@ from torch.utils.data import DataLoader, IterableDataset
 from datasets.delayed_shd_ssc import SpikingDataset
 
 from utils.settings import NUM_WORKERS, PREFETCH_FACTOR
+from config.ray.pbt import CONFIG
+
+CONFIG['n_inputs'] = 700
+CONFIG['n_outputs'] = 20
+# CONFIG['evaluation'] = 'accuracy_avg'
 
 CE = torch.nn.CrossEntropyLoss(ignore_index=-100, reduction='mean')
 def sequence_cross_entropy(logits, targets):
