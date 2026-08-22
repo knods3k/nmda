@@ -11,7 +11,7 @@ from ray import tune
 
 from utils.surrogate import Surrogate
 from model import ARCHITECTURES
-from datasets.shd_classification import CRITERION, build_loader, build_test_loader
+from datasets.xor import CRITERION, build_loader, build_test_loader
 from utils.settings import DEVICE, PROJECT_NAME
 from utils.bifurcation_condition import condition
 from utils.nmda_init import initialise_nmda_weights
