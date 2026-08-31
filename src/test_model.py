@@ -36,7 +36,7 @@ if __name__ == '__main__':
 	torch.manual_seed(CONFIG['seed'])
 	config = CONFIG
 	loader = build_loader(config['batch_size'])
-	test_loader = build_test_loader(2264)
+	test_loader = build_test_loader()
 
 	surrogate = build_surrogate(config)
 	model = build_model(config, surrogate)

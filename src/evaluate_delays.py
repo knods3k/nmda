@@ -11,7 +11,6 @@ from retrieve_model import retrieve_model
 from utils.settings import DEVICE
 from utils.diagnosis import get_n_neurons, get_n_dendrites, count_trainable_parameters
 
-N = 2264
 MAX_DELAY = 367
 NOISE_RATE = 1e-3
 

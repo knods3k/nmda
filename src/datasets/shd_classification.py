@@ -81,7 +81,7 @@ def build(batch_size, split='train', shuffle=True, **kwargs):
 def build_loader(batch_size=1, **kwargs):
 	return build(batch_size, split='train', **kwargs)
 
-def build_test_loader(batch_size=1, **kwargs):
+def build_test_loader(batch_size=2264, **kwargs):
 	loader = build(batch_size, split='test', shuffle=False, **kwargs)
 	return loader
 

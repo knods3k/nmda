@@ -8,7 +8,6 @@ from utils.settings import DEVICE
 from utils.nmda_init import initialise_nmda_weights
 from config.ray.pbt import CONFIG
 # %%
-N = 2264
 N = 1
 
 dir = '/Users/cankayser/Downloads/ray_results/58953'
