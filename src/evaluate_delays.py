@@ -98,7 +98,6 @@ if __name__ == '__main__':
 #%%
 	with plt.style.context('dark'):
 		max_delay = MAX_DELAY
-		n_samples = N
 		baseline_list = [
 			# "37767",
 			"41343",
