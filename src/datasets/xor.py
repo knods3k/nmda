@@ -17,7 +17,7 @@ CE = torch.nn.CrossEntropyLoss(ignore_index=-100, reduction='mean')
 def sequence_cross_entropy(logits, targets):
     B, T, N_CLASSES = logits.shape
     logits_flat = logits.reshape(-1, N_CLASSES)
-    targets_flat = targets.unsqueeze(-1).expand(B, T).reshape(-1)
+    targets_flat = targets.reshape(-1)
     return CE(logits_flat, targets_flat)
 
 CRITERION = sequence_cross_entropy
@@ -165,7 +165,7 @@ def build(batch_size, split='train', shuffle=True, **kwargs):
 def build_loader(batch_size=1, **kwargs):
 	return build(batch_size, split='train', **kwargs)
 
-def build_test_loader(batch_size=1, **kwargs):
+def build_test_loader(batch_size=200, **kwargs):
 	loader = build(batch_size, split='test', shuffle=False, **kwargs)
 	return loader
 
