@@ -110,7 +110,7 @@ def train(config=None):
 
 	step = 1
 	loader = build_loader(config['batch_size'], noise_variance=config['noise_variance'])
-	test_loader = build_test_loader(2264)
+	test_loader = build_test_loader()
 
 	surrogate = build_surrogate(config)
 	model = build_model(config, surrogate)
