@@ -4,7 +4,6 @@ import os
 import random
 
 import torch
-from torch import nn
 import numpy as np
 from ray import tune
 # import wandb
