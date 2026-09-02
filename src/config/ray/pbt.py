@@ -10,7 +10,7 @@ CONFIG = {
 	# "learnable": tune.choice(['none', 'one', 'all']),
 	"learnable": 'none',
 	"n_inputs": None,
-	"n_hidden": 64,
+	"n_hidden": 128,
 	"n_dendrites": 1,
 	"n_compartments": 2,
 	"n_outputs": None,
