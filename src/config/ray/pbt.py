@@ -11,7 +11,7 @@ CONFIG = {
 	"learnable": 'none',
 	"n_inputs": None,
 	"n_hidden": 256,
-	"n_dendrites": 1,
+	"n_dendrites": 2,
 	"n_compartments": 2,
 	"n_outputs": None,
 	"threshold": 1.,
