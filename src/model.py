@@ -83,7 +83,7 @@ class LIF_SNN(SNN):
 		n_hidden = config['n_hidden']
 		n_out = config['n_outputs']
 
-		config['learnable'] = 'all'
+		# config['learnable'] = 'all'
 
 		self.layer_list = [
 			SynapticLayer(n_in, n_hidden, config),
@@ -162,7 +162,7 @@ ARCHITECTURES = {
 
 if __name__ == "__main__":
 	from config.ray.pbt import CONFIG
-	from datasets.shd_prediction import build_loader
+	from datasets.shd_classification import build_loader
 	from utils.diagnosis import count_trainable_parameters
 	import matplotlib.pyplot as plt
 	from utils.nmda_init import initialise_nmda_weights
