@@ -79,11 +79,10 @@ class LIF_SNN(SNN):
 		super().__init__()
 
 		n_in = config['n_inputs']
-		n_dendrites = config['n_dendrites']
 		n_hidden = config['n_hidden']
 		n_out = config['n_outputs']
 
-		# config['learnable'] = 'all'
+		config['learnable'] = 'all'
 
 		self.layer_list = [
 			SynapticLayer(n_in, n_hidden, config),
@@ -95,6 +94,10 @@ class LIF_SNN(SNN):
 
 		self.build()
 
+class LIF_SNN_fixed(LIF_SNN):
+	def __init__(self, config):
+		config['learnable'] = 'none'
+		super().__init__(config)
 
 
 class DendriticSNN(SNN):
@@ -178,6 +181,7 @@ if __name__ == "__main__":
 	CONFIG['steps_per_epoch'] = 1
 	CONFIG['batch_size'] = 3
 	CONFIG['learnable'] = 'none'
+	CONFIG['log_dropout_rate'] = 1
 
 	CONFIG['surrogate_spike'] = Surrogate()
 	# CONFIG['n_dendrites'] = 4
