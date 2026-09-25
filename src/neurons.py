@@ -279,8 +279,13 @@ class DendriteLayer(BiologicalModel):
 		self.gaba = GABA_Receptor(n_dendrites * n_outputs, config)
 		self.integrator = MembraneIntegrator(config['du_dend'], config['dt'])
 
-		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 0)
+		self.routing = torch.nn.Parameter(torch.randn(n_inputs) + 1.5)
 		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
+
+		if config['relative_concentration'] == None:
+			self.relative_concentration = torch.nn.Parameter(torch.randn(n_dendrites * n_outputs))
+		else:
+			self.relative_concentration = config['relative_concentration']
 
 		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
 
@@ -308,7 +313,7 @@ class DendriteLayer(BiologicalModel):
 		g_ampa = self.ampa.conductance(i_exc)
 		g_gaba = self.gaba.conductance(i_inh)
 
-		u_new = self.integrator.integrate(u, g_nmda + g_ampa, g_gaba)
+		u_new = self.integrator.integrate(u, torch.exp(self.relative_concentration) * g_nmda + g_ampa, g_gaba)
 
 		self.state['u'] = u_new
 
