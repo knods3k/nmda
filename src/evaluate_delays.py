@@ -128,7 +128,7 @@ if __name__ == '__main__':
 		# model_list = list(listdir(model_directory))
 		# model_list.remove('.DS_Store')
 
-		test_loader = build_test_loader(N, delay_steps=max_delay)
+		test_loader = build_test_loader(delay_steps=max_delay)
 
 		test_x, test_y = next(iter(test_loader))
 		test_x = test_x.to(DEVICE)
