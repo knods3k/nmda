@@ -11,9 +11,9 @@ from utils.settings import DEVICE
 CONFIG['dt'] = 1e-1
 
 # %%
-directory = "/Users/cankayser/Downloads/results/41343"
+directory = "/Users/cankayser/Downloads/results/60536"
 
-def retrieve_model(directory):
+def retrieve_model_with_config(directory):
 	e = tune.ExperimentAnalysis(directory)
 
 	best_trial = e.get_best_trial(metric='evaluation', mode='min', scope='all')
@@ -28,6 +28,10 @@ def retrieve_model(directory):
 		checkpoint_dict = torch.load(os.path.join(checkpoint_dir, "checkpoint.pt"), map_location=DEVICE, weights_only=False)
 
 	model.load_state_dict(checkpoint_dict["model_state_dict"])
+	return model, best_trial.config
+
+def retrieve_model(directory):
+	model, _ = retrieve_model_with_config(directory)
 	return model
 
 # %%
