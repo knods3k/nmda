@@ -62,7 +62,7 @@ def build_evaluation_function(config):
 	if config['evaluation'] == 'test_loss':
 		return evaluate_test_loss
 
-	if config['evaluation'] == 'accuracy_last':
+	if config['evaluation'] == 'accuracy_last' or config['evaluation'] == 'accuracy':
 		return evaluate_last_accuracy
 
 	if config['evaluation'] == 'accuracy_avg':
