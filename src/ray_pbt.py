@@ -108,15 +108,17 @@ if __name__ == '__main__':
 	)
 	parser.add_argument("-id", "--id", type=str, default=f"{ID}", help="An ID for WandB")
 	parser.add_argument("-a", "--architecture", type=str, default='', help="Architecture String")
+	parser.add_argument("-n", "--n_neurons", type=int, default=None, help="Number of Neurons per Layer")
+	parser.add_argument("-d", "--n_dendrites", type=int, default=None, help="Number of Dendrites per Neuron")
 
-	try:
-		args = parser.parse_args()
-	except SystemExit:
-		args = parser.parse_args([])
-		raise Warning('Could not parse arguments, falling back to default values.')
+
+	args = parser.parse_args()
+
 
 	CONFIG['id'] = args.id
 	CONFIG['architecture'] = args.architecture
+	CONFIG['n_neurons'] = args.n_neurons
+	CONFIG['n_dendrites'] = args.n_dendrites
 	CONFIG['already_initialised'] = []
 
 	tune_with_callback()
