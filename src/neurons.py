@@ -283,9 +283,20 @@ class DendriteLayer(BiologicalModel):
 		self.surrogate_routing = config['surrogate_spike'] # reuse spiking mechanism as routing mechanism
 
 		if config['relative_concentration'] == None:
-			self.relative_concentration = torch.nn.Parameter(torch.randn(n_dendrites * n_outputs))
+			self.register_logarithmic_parameters(
+				{
+					'relative_concentration_log': config['relative_concentration'],
+				},
+				learnable='all'
+			)
 		else:
-			self.relative_concentration = config['relative_concentration']
+			self.register_logarithmic_parameters(
+				{
+					'relative_concentration_log': config['relative_concentration'],
+				},
+				learnable='none'
+			)
+
 
 		self.synapses = NonNegativeLinear(n_inputs, n_dendrites * n_outputs, config)
 
@@ -313,7 +324,7 @@ class DendriteLayer(BiologicalModel):
 		g_ampa = self.ampa.conductance(i_exc)
 		g_gaba = self.gaba.conductance(i_inh)
 
-		u_new = self.integrator.integrate(u, torch.exp(self.relative_concentration) * g_nmda + g_ampa, g_gaba)
+		u_new = self.integrator.integrate(u, torch.exp(self.relative_concentration_log) * g_nmda + g_ampa, g_gaba)
 
 		self.state['u'] = u_new
 
