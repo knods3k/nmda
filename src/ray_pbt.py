@@ -8,7 +8,7 @@ import ray
 from ray import tune
 from ray.tune.schedulers import PopulationBasedTraining
 from ray.tune.stopper import ExperimentPlateauStopper
-from ray.air.integrations.wandb import WandbLoggerCallback
+# from ray.air.integrations.wandb import WandbLoggerCallback
 
 from config.ray.pbt import CONFIG, MAX_HOURS, MAX_BATCH_SIZE, PERTURBATION_INTERVAL, NUM_SAMPLES, ID
 from ray_training import train, train_catch_oom
@@ -88,11 +88,11 @@ def tune_with_callback():
 			name=CONFIG['id'],
 			verbose=1,
 			# stop=stopper,
-        	callbacks=[WandbLoggerCallback(
-					project=PROJECT_NAME,
-					group=CONFIG['id'],
-					log_config=True,
-				)]
+        	# callbacks=[WandbLoggerCallback(
+			# 		project=PROJECT_NAME,
+			# 		group=CONFIG['id'],
+			# 		log_config=True,
+			# 	)]
 		),
 		param_space=CONFIG,
 	)
