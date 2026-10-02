@@ -110,6 +110,7 @@ if __name__ == '__main__':
 	parser.add_argument("-a", "--architecture", type=str, default='', help="Architecture String")
 	parser.add_argument("-n", "--n_neurons", type=int, default=None, help="Number of Neurons per Layer")
 	parser.add_argument("-d", "--n_dendrites", type=int, default=None, help="Number of Dendrites per Neuron")
+	parser.add_argument("-c", "--nmda_concentration", type=float, default=None, help="Concentration of NMDA relative to AMPA")
 
 
 	args = parser.parse_args()
@@ -117,7 +118,7 @@ if __name__ == '__main__':
 
 	CONFIG['id'] = args.id
 	CONFIG['architecture'] = args.architecture
-	CONFIG['n_neurons'] = args.n_neurons
+	CONFIG['n_hidden'] = args.n_neurons
 	CONFIG['n_dendrites'] = args.n_dendrites
 	CONFIG['already_initialised'] = []
 
