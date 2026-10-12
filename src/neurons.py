@@ -285,7 +285,7 @@ class DendriteLayer(BiologicalModel):
 		if config['relative_concentration'] == None:
 			self.register_logarithmic_parameters(
 				{
-					'relative_concentration_log': config['relative_concentration'],
+					'relative_concentration_log': 1.,
 				},
 				learnable='all'
 			)
