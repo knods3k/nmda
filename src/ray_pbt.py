@@ -111,8 +111,12 @@ if __name__ == '__main__':
 	parser.add_argument("-a", "--architecture", type=str, default='', help="Architecture String")
 	parser.add_argument("-n", "--n_hidden", type=int, default=None, help="Number of Neurons per Layer")
 	parser.add_argument("-d", "--n_dendrites", type=int, default=None, help="Number of Dendrites per Neuron")
-	parser.add_argument("-c", "--nmda_concentration", type=float, default=None, help="Concentration of NMDA relative to AMPA")
-
+	parser.add_argument(
+		"-c", "--nmda_concentration",
+		type=lambda x: float(x) if x else None,
+		default=None,
+		help="Concentration of NMDA relative to AMPA"
+	)
 
 	args = parser.parse_args()
 
@@ -125,6 +129,28 @@ if __name__ == '__main__':
 	CONFIG['already_initialised'] = []
 
 	tune_with_callback()
+
+	# from ray_training import build_model
+
+	# CONFIG['seed'] = 1234
+	# CONFIG['type'] = 'gauss'
+	# CONFIG['id'] = 'debug'
+	# CONFIG['energy'] = 1.
+	# CONFIG['sigma'] = 1.
+	# CONFIG['gamma'] = 1.
+	# CONFIG['dt'] = 1e-5
+	# CONFIG['learning_rate'] = 1e-3
+	# CONFIG['max_epochs'] = 1
+	# CONFIG['steps_per_epoch'] = 1
+	# CONFIG['batch_size'] = 1024
+	# CONFIG['learnable'] = 'none'
+	# CONFIG['noise_variance'] = 0
+	# CONFIG['log_dropout_rate'] = 5.
+
+	# m = build_model(CONFIG)
+	# print(
+	# 	m.layers[0].dendrites.relative_concentration_log.exp()
+	# )
 
 
 # %%
