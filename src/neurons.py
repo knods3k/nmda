@@ -323,8 +323,9 @@ class DendriteLayer(BiologicalModel):
 		g_nmda = self.nmda.conductance(i_exc, u)
 		g_ampa = self.ampa.conductance(i_exc)
 		g_gaba = self.gaba.conductance(i_inh)
+		clamped_concentration = torch.clamp(self.relative_concentration_log.exp(), max=9)
 
-		u_new = self.integrator.integrate(u, torch.exp(self.relative_concentration_log) * g_nmda + g_ampa, g_gaba)
+		u_new = self.integrator.integrate(u, clamped_concentration * g_nmda + g_ampa, g_gaba)
 
 		self.state['u'] = u_new
 
