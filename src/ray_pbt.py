@@ -129,7 +129,7 @@ if __name__ == '__main__':
 	CONFIG['n_hidden'] = args.n_hidden
 	CONFIG['n_dendrites'] = args.n_dendrites
 	CONFIG['relative_concentration'] = args.nmda_concentration
-	CONFIG['storage_path'] = args.nmda_concentration
+	CONFIG['storage_path'] = args.storage_path
 	CONFIG['already_initialised'] = []
 
 	tune_with_callback()
