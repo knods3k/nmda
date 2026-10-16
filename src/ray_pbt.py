@@ -87,6 +87,7 @@ def tune_with_callback():
 		),
 		run_config=tune.RunConfig(
 			name=CONFIG['id'],
+			storage_path=CONFIG['storage_path'],
 			verbose=1,
 			# stop=stopper,
         	# callbacks=[WandbLoggerCallback(
@@ -117,6 +118,8 @@ if __name__ == '__main__':
 		default=None,
 		help="Concentration of NMDA relative to AMPA"
 	)
+	parser.add_argument("-s", "--storage_path", type=str, default=None, help="Storage Path for Ray Results")
+
 
 	args = parser.parse_args()
 
@@ -126,6 +129,7 @@ if __name__ == '__main__':
 	CONFIG['n_hidden'] = args.n_hidden
 	CONFIG['n_dendrites'] = args.n_dendrites
 	CONFIG['relative_concentration'] = args.nmda_concentration
+	CONFIG['storage_path'] = args.nmda_concentration
 	CONFIG['already_initialised'] = []
 
 	tune_with_callback()

@@ -44,5 +44,6 @@ CONFIG = {
 	"seed": tune.randint(0, 9999),
 	"id": ID,
 	"already_initialised": [],
+	"storage_path": "~/ray_results",
 	"activate_bias": False,
 	}
